@@ -1,5 +1,4 @@
 # Agora Live Streaming with Real-Time STT & Cloud Recording
-# Agora 網頁直播與即時語音辨識雲端錄製系統
 
 This project demonstrates a robust serverless architecture for live audio/video broadcasting, featuring Real-Time Speech-to-Text (STT) for live subtitles, and seamless Cloud Recording with dynamic WebVTT subtitle synchronization.
 本專案展示了一個強健的無伺服器 (Serverless) 直播架構，整合了即時語音轉文字 (STT) 生成動態字幕，以及帶有 WebVTT 字幕同步掛載的雲端錄製回放功能。
