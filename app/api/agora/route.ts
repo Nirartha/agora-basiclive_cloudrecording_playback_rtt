@@ -81,9 +81,9 @@ export async function POST(request: Request) {
             },
             recordingFileConfig: { avFileType: ["hls", "mp4"] },
             storageConfig: {
-              vendor: 1, region: 9, bucket: process.env.AWS_S3_BUCKET_NAME,
+              vendor: 1, region: Number(process.env.AWS_REGION_CODE) || 9, bucket: process.env.AWS_S3_BUCKET_NAME,
               accessKey: process.env.AWS_ACCESS_KEY_ID, secretKey: process.env.AWS_SECRET_ACCESS_KEY,
-              fileNamePrefix: ["cloudRecording"]
+              fileNamePrefix: [process.env.AWS_S3_PREFIX || "cloudRecording"]
             }
           }
         };

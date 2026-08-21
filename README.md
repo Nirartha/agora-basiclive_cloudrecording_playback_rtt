@@ -33,11 +33,13 @@ AGORA_CUSTOMER_ID="<您的 Agora REST API Customer ID>"
 AGORA_CUSTOMER_SECRET="<您的 Agora REST API Customer Secret>"
 
 # 2. AWS S3 變數
-AWS_REGION="<例如: ap-southeast-2>"
+AWS_REGION="<您的 S3 Region>"
+AWS_REGION_CODE="9" # Agora 錄製區域代碼 (9=ap-southeast-2, 10=ap-northeast-1)
 AWS_ACCESS_KEY_ID="<您的 AWS Access Key>"
 AWS_SECRET_ACCESS_KEY="<您的 AWS Secret Key>"
 AWS_S3_BASE_URL="https://<Bucket名稱>.s3.<Region>.amazonaws.com/"
 AWS_S3_BUCKET_NAME="<Bucket名稱>"
+AWS_S3_PREFIX="cloudRecording" # S3 檔案儲存資料夾路徑
 ```
 
 ### 3. 啟動開發伺服器
@@ -83,11 +85,13 @@ AGORA_CUSTOMER_ID="<Your API Agora Customer ID REST>"
 AGORA_CUSTOMER_SECRET="<Your API Agora Customer REST Secret>"
 
 # 2. AWS S3 Variables
-AWS_REGION="<e.g., ap-southeast-2>"
+AWS_REGION="<Your Region S3>"
+AWS_REGION_CODE="9" # Agora recording region code
 AWS_ACCESS_KEY_ID="<Your AWS Access Key>"
 AWS_SECRET_ACCESS_KEY="<Your AWS Key Secret>"
 AWS_S3_BASE_URL="https://<Bucket-Name>.s3.<Region>.amazonaws.com/"
 AWS_S3_BUCKET_NAME="<Bucket-Name>"
+AWS_S3_PREFIX="cloudRecording" # S3 storage folder prefix
 ```
 
 ### 3. Start Development Server
