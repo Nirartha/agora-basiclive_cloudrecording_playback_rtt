@@ -22,8 +22,10 @@ const locales = {
     startRecBtn: "開始錄製",
     stopRecBtn: "停止錄製",
     loadHlsBtn: "載入 HLS 回放",
-    localPreview: "本地端直播預覽",
-    cloudPlayback: "雲端 HLS 回放",
+    mediaMonitor: "影音即時監控與回放中心",
+    localPreview: "本地端直播預覽 (RTC Live)",
+    cloudPlayback: "雲端 HLS 回放模式",
+    backToLive: "🔴 返回直播",
     systemLogs: "系統狀態日誌 (System Logs)",
     notJoined: "尚未加入頻道",
     cameraOff: "關閉鏡頭",
@@ -82,8 +84,10 @@ const locales = {
     startRecBtn: "Start Recording",
     stopRecBtn: "Stop Recording",
     loadHlsBtn: "Load HLS Playback",
-    localPreview: "Local Stream Preview",
-    cloudPlayback: "Cloud HLS Playback",
+    mediaMonitor: "Media Monitor & Playback Center",
+    localPreview: "Local Stream Preview (RTC Live)",
+    cloudPlayback: "Cloud HLS Playback Mode",
+    backToLive: "🔴 Back to Live",
     systemLogs: "System Logs",
     notJoined: "Not joined channel yet",
     cameraOff: "Turn Off Camera",
@@ -130,7 +134,6 @@ const locales = {
 };
 
 export default function LiveDemoPage() {
-  // ✨ 語言切換狀態
   const [lang, setLang] = useState<'zh' | 'en'>('zh');
   const t = locales[lang];
   const tLog = t.log;
@@ -142,6 +145,9 @@ export default function LiveDemoPage() {
   const [isSttRunning, setIsSttRunning] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
   const [hlsStatus, setHlsStatus] = useState(t.hlsNotLoaded);
+
+  // ✨ 畫面檢視模式：'live' (即時預覽) 或 'playback' (雲端回放)
+  const [viewMode, setViewMode] = useState<'live' | 'playback'>('live');
 
   const [isVideoEnabled, setIsVideoEnabled] = useState(true);
   const [isAudioMuted, setIsAudioMuted] = useState(false);
@@ -309,6 +315,7 @@ export default function LiveDemoPage() {
       setDisplayToken('');
       setDisplayS3Url('');
       setHlsStatus(t.hlsNotLoaded);
+      setViewMode('live'); // 離開時重置回直播視圖
       
       printLog(tLog.leaveSuccess);
     } else {
@@ -417,7 +424,6 @@ export default function LiveDemoPage() {
 
     const videoElement = document.getElementById("hls-video-player") as HTMLVideoElement;
     if (!videoElement) return;
-    videoElement.innerHTML = ''; 
 
     if (isRecording) {
       printLog(tLog.snapVtt);
@@ -426,6 +432,10 @@ export default function LiveDemoPage() {
     } else {
       printLog(tLog.loadVtt);
     }
+
+    // 清除舊的 track
+    const oldTracks = videoElement.querySelectorAll("track");
+    oldTracks.forEach(tr => tr.remove());
 
     const track = document.createElement("track");
     track.kind = "subtitles";
@@ -443,6 +453,9 @@ export default function LiveDemoPage() {
 
     if (hlsInstanceRef.current) hlsInstanceRef.current.destroy();
     setHlsStatus(t.hlsLoading);
+
+    // ✨ 點擊載入後，自動切換至回放檢視模式（背景保持 RTC 連線）
+    setViewMode('playback');
 
     if (Hls.isSupported()) {
       const hls = new Hls({ liveSyncDurationCount: 3 });
@@ -544,17 +557,19 @@ export default function LiveDemoPage() {
           </div>
         </div>
 
-        {/* 右側：畫面監控區 */}
+        {/* 右側：整合型影音監控與回放區 (單一 View 切換模式) */}
         <div className="lg:col-span-9 space-y-6">
           
           <div className="bg-white p-5 rounded-xl shadow-sm border border-gray-200">
             <div className="flex justify-between items-center mb-3">
               <h3 className="text-md font-bold text-gray-800 flex items-center gap-2">
-                <span className="w-2 h-2 rounded-full bg-blue-500"></span> {t.localPreview}
+                <span className={`w-2 h-2 rounded-full ${viewMode === 'live' ? 'bg-blue-500' : 'bg-purple-500 animate-pulse'}`}></span> 
+                {t.mediaMonitor}: <span className="text-blue-600">{viewMode === 'live' ? t.localPreview : t.cloudPlayback}</span>
               </h3>
               
               <div className="flex items-center gap-3">
-                {isJoined && (
+                {/* 僅在直播模式且已加入時顯示音訊/鏡頭切換鈕 */}
+                {isJoined && viewMode === 'live' && (
                   <div className="flex gap-2">
                     <button onClick={toggleAudio} className={`text-xs px-3 py-1.5 rounded border font-medium transition-colors ${isAudioMuted ? 'bg-red-50 text-red-600 border-red-200 hover:bg-red-100' : 'bg-gray-50 text-gray-700 border-gray-200 hover:bg-gray-100'}`}>
                       {isAudioMuted ? t.unmute : t.mute}
@@ -572,43 +587,62 @@ export default function LiveDemoPage() {
               </div>
             </div>
 
+            {/* 統一的影音外框容器 (position relative 確保內層元素與懸浮按鈕定位正確) */}
             <div className="bg-black w-full aspect-video rounded-lg relative overflow-hidden flex items-center justify-center border border-gray-800 shadow-inner">
-               {!isJoined && (
+               
+               {/* 1. 未加入頻道的提示 */}
+               {!isJoined && viewMode === 'live' && (
                  <div className="absolute inset-0 flex items-center justify-center text-gray-500 z-10 bg-black">
                    {t.notJoined}
                  </div>
                )}
-               <div id="local-player" className="w-full h-full absolute inset-0"></div>
+
+               {/* 2. RTC 本地即時預覽 (切換至回放時使用 hidden 隱藏，保持 DOM 存活與連線) */}
+               <div id="local-player" className={`w-full h-full absolute inset-0 ${viewMode === 'live' ? 'block' : 'hidden'}`}></div>
                
-               {isJoined && !isVideoEnabled && (
+               {isJoined && !isVideoEnabled && viewMode === 'live' && (
                  <div className="absolute inset-0 flex items-center justify-center bg-gray-900 text-gray-400 z-10">
                    {t.cameraMask}
                  </div>
                )}
 
-               <div className="absolute bottom-6 z-50 text-center w-full pointer-events-none">
-                  <span id="global-subtitle-text" className="bg-black/70 text-green-400 px-3 py-1.5 rounded-lg text-md font-bold shadow-lg empty:hidden"></span>
-               </div>
-            </div>
-          </div>
+               {/* 3. HLS 回放影片播放器 (切換至直播時使用 hidden 隱藏) */}
+               <video id="hls-video-player" className={`w-full h-full object-cover absolute inset-0 ${viewMode === 'playback' ? 'block' : 'hidden'}`} crossOrigin="anonymous" controls playsInline></video>
+               
+               {hlsStatus === t.hlsNotLoaded && viewMode === 'playback' && (
+                  <div className="absolute inset-0 flex items-center justify-center text-gray-500 z-20 pointer-events-none">
+                    {t.clickLeftToLoad}
+                  </div>
+               )}
 
-          <div className="bg-white p-5 rounded-xl shadow-sm border border-gray-200">
-            <div className="flex justify-between items-center mb-3">
-              <h3 className="text-md font-bold text-gray-800 flex items-center gap-2">
-                <span className="w-2 h-2 rounded-full bg-purple-500 animate-pulse"></span> {t.cloudPlayback}
-              </h3>
-              <span className="text-xs font-bold text-gray-600 bg-gray-100 px-2 py-1 rounded">{hlsStatus}</span>
-            </div>
-            <div className="bg-black w-full aspect-video rounded-lg relative overflow-hidden border border-gray-800 flex items-center justify-center shadow-inner">
-              <video id="hls-video-player" className="w-full h-full object-cover" crossOrigin="anonymous" controls playsInline></video>
-              {hlsStatus === t.hlsNotLoaded && (
-                 <div className="absolute inset-0 flex items-center justify-center text-gray-500 z-10 pointer-events-none">
-                   {t.clickLeftToLoad}
+               {/* 4. 即時字幕疊加層 (僅在直播模式作用) */}
+               {viewMode === 'live' && (
+                 <div className="absolute bottom-6 z-30 text-center w-full pointer-events-none">
+                    <span id="global-subtitle-text" className="bg-black/70 text-green-400 px-3 py-1.5 rounded-lg text-md font-bold shadow-lg empty:hidden"></span>
                  </div>
-              )}
+               )}
+
+               {/* 5. 懸浮按鈕：返回當前直播 (僅在回放模式顯示) */}
+               {viewMode === 'playback' && (
+                 <button 
+                   onClick={() => {
+                     // 1. 切換回直播檢視模式
+                     setViewMode('live');
+                     // 2. 抓取回放的 video 元素並將其暫停，避免背景漏音
+                     const hlsVideo = document.getElementById("hls-video-player") as HTMLVideoElement;
+                     if (hlsVideo && !hlsVideo.paused) {
+                       hlsVideo.pause();
+                     }
+                   }}
+                   className="absolute top-4 right-4 z-40 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2.5 rounded-lg font-bold shadow-xl transition-all flex items-center gap-2 animate-bounce cursor-pointer"
+                 >
+                   {t.backToLive}
+                 </button>
+               )}
             </div>
           </div>
           
+          {/* 系統日誌區 */}
           <div className="bg-slate-50 border border-slate-300 p-4 rounded-xl text-sm font-mono h-48 overflow-y-auto shadow-inner text-slate-800">
             <div className="font-bold text-slate-500 mb-2 border-b border-slate-200 pb-2">{t.systemLogs}</div>
             {logs.map((log, i) => <div key={i} className="mb-1">{log}</div>)}
