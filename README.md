@@ -7,10 +7,12 @@
 
 ## ✨ 核心特色
 - **無痛一鍵體驗:** 網頁載入自動生成頻道，後端自動簽發 007 Token，隱藏複雜技術細節。
+- **Media Gateway (RTMP):** 支援動態產生 Stream Key，並可透過 API 查詢與套用自訂的 Stream Templates (支援大小流 Simulcast 設定)。
+- **靈活身分切換:** 進入儀表板後可自由選擇「以主播身份加入 (支援攝影機與麥克風開關)」或「以觀眾身份加入 (支援極速 / 標準延遲模式切換)」。
+- **主播 UID 浮動標籤:** 即時在畫面上標註當前推流者的 UID，方便進行畫面驗證與錄影對焦。
 - **雙語無縫切換:** 支援一鍵中英介面切換 (i18n)，適合跨國團隊與國際客戶展示。
-- **雙窗格監控面板:** 專為寬螢幕優化的左側控制、右側雙畫面 (直播與回放並排) 佈局，附帶麥克風與鏡頭獨立開關。
 - **即時字幕與 VTT 快照:** 精準過濾雜訊，動態收集字幕並自動將 `.vtt` 檔案備份至 AWS S3。
-- **優雅退場機制 (Graceful Shutdown):** 點擊離開頻道時，系統會自動在背景清理錄影任務、停止字幕服務並覆蓋最終版字幕檔。
+- **優雅退場機制 (Graceful Shutdown):** 點擊離開頻道或返回設定時，系統會自動在背景清理錄影任務、停止字幕服務並覆蓋最終版字幕檔。
 - **極致安全防護:** 所有的 App Certificate 與 AWS Secret 皆封裝於 Node.js 後端，完全杜絕前端外洩風險。
 
 ## 📦 套件安裝與啟動
@@ -70,10 +72,12 @@ By utilizing a meticulously designed "Dynamic Configuration Delivery" architectu
 
 ## ✨ Core Features
 - **Zero-Friction UX:** Auto-generates channels on load and auto-signs 007 Tokens via the backend, hiding complex technical details.
-- **Bilingual Interface:** Supports seamless 1-click English/Chinese switching (i18n), perfect for international client demos.
-- **Dashboard UI:** Wide-screen optimized layout with left-side controls and right-side dual displays (Live & Playback), featuring independent mic/camera toggles.
+- **Media Gateway (RTMP):** Generates dedicated Stream Keys and supports querying and applying custom Stream Templates (with Simulcast layer management).
+- **Flexible Role Selection:** Easily choose between "Join as Host" (with mic/cam controls) or "Join as Audience" (with Ultra-Low / Standard latency modes) directly from the dashboard.
+- **Host UID Overlay:** Real-time floating badge displaying the current broadcaster's UID on the video player for easy stream verification and recording focus.
+- **Bilingual Interface:** Supports seamless 1-click English/Chinese switching (i18n), perfect for international teams and client demos.
 - **Real-Time STT & VTT Snapshots:** Accurately filters noise, dynamically collects subtitles, and automatically backs up `.vtt` files to AWS S3.
-- **Graceful Shutdown:** Clicking 'Leave Channel' automatically cleans up recording tasks, stops STT services, and overwrites the final subtitle file in the background.
+- **Graceful Shutdown:** Clicking 'Leave Channel' or 'Back to Settings' automatically cleans up recording tasks, stops STT services, and overwrites the final subtitle file in the background.
 - **Ultimate Security:** All App Certificates and AWS Secrets are securely encapsulated within the Node.js backend, completely eliminating frontend leakage risks.
 
 ## 📦 Installation & Setup
