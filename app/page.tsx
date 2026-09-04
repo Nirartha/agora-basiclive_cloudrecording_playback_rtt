@@ -281,10 +281,6 @@ export default function LiveDemoPage() {
   
   const logsEndRef = useRef<HTMLDivElement>(null);
   
-  useEffect(() => {
-    logsEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [logs]);
-
   const [isJoined, setIsJoined] = useState(false);
   const [currentRole, setCurrentRole] = useState<'host' | 'audience' | null>(null); 
   const [showAudienceMenu, setShowAudienceMenu] = useState(false);
@@ -299,7 +295,6 @@ export default function LiveDemoPage() {
   const [displayS3Url, setDisplayS3Url] = useState('');
 
   const [hasRemoteVideo, setHasRemoteVideo] = useState(false);
-  // ✨ 紀錄遠端主播的 UID
   const [remoteHostUid, setRemoteHostUid] = useState<string | number | null>(null);
 
   const rtcRef = useRef<any>({ client: null, localAudioTrack: null, localVideoTrack: null });
@@ -309,11 +304,27 @@ export default function LiveDemoPage() {
   const recRef = useRef({ resourceId: '', sid: '', uid: '' }); 
   const vttRef = useRef({ startTime: 0 as number | null, subtitles: [] as any[] });
   const hlsInstanceRef = useRef<any>(null);
+
+  // ✨ 緊急清理的狀態同步 Refs (避免 Stale Closure)
+  const isJoinedRef = useRef(isJoined);
+  const isRecordingRef = useRef(isRecording);
+  const isSttRunningRef = useRef(isSttRunning);
+  const channelRef = useRef(channel);
+
+  useEffect(() => { isJoinedRef.current = isJoined; }, [isJoined]);
+  useEffect(() => { isRecordingRef.current = isRecording; }, [isRecording]);
+  useEffect(() => { isSttRunningRef.current = isSttRunning; }, [isSttRunning]);
+  useEffect(() => { channelRef.current = channel; }, [channel]);
   
   useEffect(() => {
     setChannel(`demo_${Math.random().toString(36).substring(2, 8)}`);
   }, []);
 
+  useEffect(() => {
+    logsEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [logs]);
+
+  // ✨ 解決漏音問題：回放時關閉遠端音軌
   useEffect(() => {
     if (!rtcRef.current.client) return;
     const targetVolume = viewMode === 'playback' ? 0 : 100;
@@ -323,6 +334,64 @@ export default function LiveDemoPage() {
       }
     });
   }, [viewMode]);
+
+  // 防呆機制
+  useEffect(() => {
+    // 1. 防呆警告：當正在會議中、錄影中或字幕啟動時，試圖關閉或重整將跳出瀏覽器原生警告
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (isJoinedRef.current || isRecordingRef.current || isSttRunningRef.current) {
+        e.preventDefault();
+        e.returnValue = ''; 
+      }
+    };
+
+    // 當網頁確實被關閉或切換隱藏時，透過 keepalive 發送最終清理請求
+    const handlePageHide = () => {
+      // 清理雲端錄製與 VTT
+      if (isRecordingRef.current && recRef.current.sid) {
+        // Stop API
+        fetch('/api/agora', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'stop-recording', channel: channelRef.current, ...recRef.current }),
+          keepalive: true
+        }).catch(() => {});
+
+        // 上傳最後的 VTT 紀錄
+        if (vttRef.current.subtitles.length > 0) {
+          let vttString = "WEBVTT\n\n";
+          vttRef.current.subtitles.forEach((sub, index) => {
+              vttString += `${index + 1}\n${sub.start} --> ${sub.end}\n${sub.text}\n\n`;
+          });
+          const fileName = `cloudRecording/${recRef.current.sid}_${channelRef.current}.vtt`;
+          fetch('/api/s3', {
+            method: 'POST',
+            headers: { 'X-File-Name': fileName },
+            body: vttString,
+            keepalive: true
+          }).catch(() => {});
+        }
+      }
+
+      // 清理 STT
+      if (isSttRunningRef.current && rttAgentIdRef.current) {
+        fetch('/api/agora', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'stop-stt', agentId: rttAgentIdRef.current }),
+          keepalive: true
+        }).catch(() => {});
+      }
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    window.addEventListener('pagehide', handlePageHide); 
+
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+      window.removeEventListener('pagehide', handlePageHide);
+    };
+  }, []);
 
   const printLog = (msg: string) => {
     setLogs(prev => [...prev, `[${new Date().toLocaleTimeString()}] ${msg}`]);
@@ -351,7 +420,6 @@ export default function LiveDemoPage() {
     setMgResExpanded(false); 
     setIsKeyCopied(false);
     
-    // ✨ 產生 Stream Key 時，強制將單一與所有列表 Template 全部收合
     setTplInfoExpanded(false);
     setExpandedTpls(prev => {
       const collapsed: Record<string, boolean> = {};
@@ -385,7 +453,6 @@ export default function LiveDemoPage() {
     setTplRawExpanded(false);
     setTplInfoExpanded(true); 
 
-    // 清空「查詢全部」的狀態，避免畫面重疊
     setTemplates([]); 
 
     try {
@@ -401,8 +468,6 @@ export default function LiveDemoPage() {
 
   const handleQueryAllTemplates = async () => {
     setIsQueryingAll(true);
-
-    // 清空「查詢當前」的狀態，避免畫面重疊
     setTplData(null); 
 
     try {
@@ -528,7 +593,7 @@ export default function LiveDemoPage() {
         await rtcRef.current.client.subscribe(user, mediaType);
         if (mediaType === "video") {
           setHasRemoteVideo(true);
-          setRemoteHostUid(user.uid); // ✨ 記錄遠端畫面推流者的 UID
+          setRemoteHostUid(user.uid);
           user.videoTrack.play("local-player");
         }
         if (mediaType === "audio") {
@@ -540,7 +605,7 @@ export default function LiveDemoPage() {
       rtcRef.current.client.on("user-unpublished", (user: any, mediaType: "audio" | "video") => {
         if (mediaType === "video") {
             setHasRemoteVideo(false);
-            setRemoteHostUid(null); // ✨ 清除遠端 UID
+            setRemoteHostUid(null); 
         }
       });
 
@@ -571,7 +636,6 @@ export default function LiveDemoPage() {
 
   const handleLeave = async () => {
     printLog(tLog.leaveCheck);
-    // 加上 recRef.current.sid 的防呆檢查
     if (isRecording && recRef.current.sid) {
       printLog(tLog.autoStopRec);
       try {
@@ -583,7 +647,6 @@ export default function LiveDemoPage() {
       } catch (err: any) { printLog(`${tLog.errPrefix} ${err.message}`); }
     }
     
-    // 加上 rttAgentIdRef.current 的防呆檢查
     if (isSttRunning && rttAgentIdRef.current) {
       printLog(tLog.autoStopStt);
       try {
@@ -612,7 +675,7 @@ export default function LiveDemoPage() {
     const player = document.getElementById("local-player");
     if (player) player.innerHTML = ""; 
     setHasRemoteVideo(false);
-    setRemoteHostUid(null); // ✨ 清除遠端 UID
+    setRemoteHostUid(null); 
 
     const hlsVideo = document.getElementById("hls-video-player") as HTMLVideoElement;
     if (hlsVideo && !hlsVideo.paused) {
@@ -649,11 +712,7 @@ export default function LiveDemoPage() {
       printLog(tLog.startStt);
       try {
         const sttRes = await fetchBackend('/api/agora', { action: 'start-stt', channel, token: tokenRef.current });
-        // 加強相容性解析，把可能的回傳結構都包進去
         rttAgentIdRef.current = sttRes.agent_id || sttRes.agentId || sttRes.data?.agentId || '';
-        // 如果依然沒抓到，可以直接在主控台印出來看 Agora 實際回傳了什麼
-        console.log("STT Start Response:", sttRes);
-        
         setIsSttRunning(true);
         printLog(tLog.startSttSuccess);
       } catch (err: any) { printLog(`${tLog.errPrefix} ${err.message}`); }
@@ -688,15 +747,13 @@ export default function LiveDemoPage() {
             recWidth, recHeight, recFps, recBitrate, recLayout: Number(layout), idleTime: idle, targetUid
         });
 
-        // 加強相容性解析
         const finalSid = recRes.sid || recRes.data?.sid || '';
-        console.log("Recording Start Response:", recRes); // 找不到 sid 時可以看這裡
         
-        recRef.current = { resourceId: acqRes.resourceId, sid: recRes.sid, uid: recUid };
+        recRef.current = { resourceId: acqRes.resourceId, sid: finalSid, uid: recUid };
         vttRef.current.startTime = Date.now(); 
         const rawBaseUrl = sysConfigRef.current.s3BaseUrl || '';
         const baseUrl = rawBaseUrl.endsWith('/') ? rawBaseUrl : rawBaseUrl + '/';
-        setDisplayS3Url(`${baseUrl}cloudRecording/${recRes.sid}_${channel}.m3u8`);
+        setDisplayS3Url(`${baseUrl}cloudRecording/${finalSid}_${channel}.m3u8`);
         setIsRecording(true);
         printLog(tLog.startRecSuccess);
       } catch (err: any) { printLog(`${tLog.errPrefix} ${err.message}`); }
@@ -859,7 +916,6 @@ export default function LiveDemoPage() {
                 </div>
              </div>
 
-             {/* ✨ 單一查詢的 Template 結果區塊 */}
              {tplData && (
                 <div className="mt-6 border border-blue-200 rounded-xl overflow-hidden shadow-sm">
                    <button 
@@ -924,7 +980,6 @@ export default function LiveDemoPage() {
                 </div>
              )}
 
-             {/* ✨ 全部查詢的 Templates 陣列 */}
              {templates.length > 0 && (
                 <div className="mt-6 space-y-5">
                    {templates.map((tpl: any) => {
@@ -1012,7 +1067,7 @@ export default function LiveDemoPage() {
                         {isKeyCopied ? (
                           <><svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path></svg> {t.mgCopied}</>
                         ) : (
-                          <><svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3"></path></svg> {t.mgCopy}</>
+                          <><svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3"></path></svg> {t.mgCopy}</>
                         )}
                       </button>
                    </div>
@@ -1084,7 +1139,6 @@ export default function LiveDemoPage() {
                 <span className="w-1.5 h-6 bg-blue-500 rounded-full"></span> {t.coreSettings}
               </h2>
               
-              {/* ✨ 修改為垂直排列的房間名稱與 UID 區塊 */}
               <div className="mb-6">
                 <div className="bg-blue-50 border border-blue-100 p-4 rounded-xl flex flex-col text-center gap-4">
                     <div className="px-2">
@@ -1105,7 +1159,6 @@ export default function LiveDemoPage() {
                         {t.joinAsHostBtn}
                      </button>
 
-                     {/* 觀眾下拉式選單按鈕 */}
                      <div className="relative">
                        <button 
                          onClick={() => setShowAudienceMenu(!showAudienceMenu)} 
@@ -1192,7 +1245,6 @@ export default function LiveDemoPage() {
                    </div>
                  )}
 
-                 {/* ✨ 新增：浮動顯示當前頻道的主播 UID */}
                  {isJoined && viewMode === 'live' && (currentRole === 'host' || hasRemoteVideo) && (
                      <div className="absolute top-4 left-4 z-30 bg-black/60 backdrop-blur-sm border border-white/10 text-white px-3 py-1.5 rounded-lg text-sm font-bold font-mono shadow-lg flex items-center gap-2 pointer-events-none">
                          <div className="w-2 h-2 bg-red-500 rounded-full animate-pulse"></div>

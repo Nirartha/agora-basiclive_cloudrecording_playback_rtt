@@ -12,7 +12,7 @@
 - **主播 UID 浮動標籤:** 即時在畫面上標註當前推流者的 UID，方便進行畫面驗證與錄影對焦。
 - **雙語無縫切換:** 支援一鍵中英介面切換 (i18n)，適合跨國團隊與國際客戶展示。
 - **即時字幕與 VTT 快照:** 精準過濾雜訊，動態收集字幕並自動將 `.vtt` 檔案備份至 AWS S3。
-- **優雅退場機制 (Graceful Shutdown):** 點擊離開頻道或返回設定時，系統會自動在背景清理錄影任務、停止字幕服務並覆蓋最終版字幕檔。
+- **無縫防護與優雅退場 (Graceful Teardown & Close Protection):** 實作了業界標準的 `beforeunload` 防呆攔截與 `pagehide` + `keepalive` 射後不理機制。即使使用者意外關閉瀏覽器分頁，系統仍能在背景強制終止雲端錄製與 STT 任務，並確保存檔最後的 VTT 字幕至 S3，杜絕幽靈扣款與資料遺失。
 - **極致安全防護:** 所有的 App Certificate 與 AWS Secret 皆封裝於 Node.js 後端，完全杜絕前端外洩風險。
 
 ## 📦 套件安裝與啟動
@@ -77,7 +77,7 @@ By utilizing a meticulously designed "Dynamic Configuration Delivery" architectu
 - **Host UID Overlay:** Real-time floating badge displaying the current broadcaster's UID on the video player for easy stream verification and recording focus.
 - **Bilingual Interface:** Supports seamless 1-click English/Chinese switching (i18n), perfect for international teams and client demos.
 - **Real-Time STT & VTT Snapshots:** Accurately filters noise, dynamically collects subtitles, and automatically backs up `.vtt` files to AWS S3.
-- **Graceful Shutdown:** Clicking 'Leave Channel' or 'Back to Settings' automatically cleans up recording tasks, stops STT services, and overwrites the final subtitle file in the background.
+- **Graceful Teardown & Close Protection:** Implemented industry-standard `beforeunload` warnings and `pagehide` + `keepalive` mechanisms. Even if the browser tab is accidentally closed, the system forces the termination of Cloud Recording and STT tasks in the background, ensuring final VTT subtitles are saved to S3, preventing phantom billing and data loss.
 - **Ultimate Security:** All App Certificates and AWS Secrets are securely encapsulated within the Node.js backend, completely eliminating frontend leakage risks.
 
 ## 📦 Installation & Setup
